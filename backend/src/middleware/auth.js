@@ -1,0 +1,51 @@
+const jwt = require('jsonwebtoken');
+const User = require('../models/User');
+
+const protect = async (req, res, next) => {
+  let token;
+
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith('Bearer')
+  ) {
+    try {
+      token = req.headers.authorization.split(' ')[1];
+      const decoded = jwt.verify(
+        token,
+        process.env.JWT_SECRET || 'caresync_super_secret_jwt_key_2026_production'
+      );
+
+      req.user = await User.findById(decoded.id).select('-password');
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: 'User belonging to this token no longer exists.',
+        });
+      }
+
+      if (!req.user.isActive) {
+        return res.status(403).json({
+          success: false,
+          message: 'Your account has been deactivated. Contact administrator.',
+        });
+      }
+
+      return next();
+    } catch (error) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired authentication token. Please log in again.',
+      });
+    }
+  }
+
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication token is required to access this resource.',
+    });
+  }
+};
+
+module.exports = { protect };
+
